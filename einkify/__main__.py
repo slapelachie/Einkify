@@ -7,7 +7,15 @@ import yaml
 from typing import Dict
 from PIL import Image
 
-DEFAULT_PROFILE = {"mono": False, "manga": True, "extension": "jpg"}
+MAX_DIMENSION = 100000
+ZOOM_FACTOR = 2
+DEFAULT_PROFILE = {
+    "mono": False,
+    "type": "jpg",
+    "max_width": MAX_DIMENSION,
+    "max_height": MAX_DIMENSION,
+    "zoom_factor": ZOOM_FACTOR,
+}
 
 
 class VerifyFileError(Exception):
@@ -33,6 +41,9 @@ def parse_arguments() -> argparse.Namespace:
         "-o", "--output", dest="output_file", type=str, help="Path to the output file"
     )
     parser.add_argument("--profile", type=str, help="Profile to use")
+    parser.add_argument(
+        "--manga", action="store_true", help="If epub should be in rtl format"
+    )
 
     # Parse the arguments
     return parser.parse_args()
@@ -97,7 +108,16 @@ def process_images(profile: Dict, image_directory: str) -> str:
         image_out_path = os.path.join(output_directory, image_path)
         os.makedirs(os.path.dirname(image_out_path), exist_ok=True)
 
-        image.save(os.path.join(output_directory, image_path))
+        max_dimension = profile.get("max_dimension", MAX_DIMENSION) * profile.get(
+            "zoom_factor", ZOOM_FACTOR
+        )
+        image.thumbnail((max_dimension, max_dimension), resample=Image.LANCZOS)
+
+        image_type = profile.get("type", "jpg")
+        image.save(
+            f"{os.path.splitext(os.path.join(output_directory, image_path))[0]}.{image_type}",
+            format=image_type,
+        )
 
 
 if __name__ == "__main__":

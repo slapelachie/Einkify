@@ -1,2 +1,4 @@
 mono: true
-extension: "webp"
+type: "webp"
+max_dimension: 200
+zoom_factor: 2
