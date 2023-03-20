@@ -1,4 +1,4 @@
 mono: true
 type: "webp"
-max_dimension: 200
+max_dimension: 1680
 zoom_factor: 2
