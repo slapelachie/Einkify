@@ -29,19 +29,21 @@ def has_allowed_extension(
         >>> has_allowed_extension("image.bmp", [".jpg", ".png"])
         False
     """
+    if not image_path:
+        raise ValueError("Please specify an image path")
     _, extension = os.path.splitext(image_path)
     return extension.lower() in allowed_extensions
 
 
 def get_image_paths(image_directory: str) -> List[str]:
     """
-    Get a list of image file paths in the given directory.
+    Get a list of relative image file paths in the given directory.
 
     Args:
         image_directory: A string representing the path to the directory containing the images.
 
     Returns:
-        A list of image file paths with allowed extensions in the directory.
+        A list of relative image file paths with allowed extensions in the directory.
     """
     allowed_extensions = [
         ".jpg",
@@ -52,6 +54,9 @@ def get_image_paths(image_directory: str) -> List[str]:
         ".tiff",
         ".webp",
     ]
+
+    if not os.path.exists(image_directory):
+        raise FileNotFoundError("Specified image_directory does not exist")
 
     image_paths = []
     for root, _, files in os.walk(image_directory):
