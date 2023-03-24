@@ -10,11 +10,7 @@ from .cli import parse_arguments
 from .archive_extractor import extract_file
 from .profile_processor import get_profile
 from .image_processor import process_images
-from .ebook_generator import make_ebook
-
-
-def get_title(input_file: str) -> str:
-    return os.path.splitext(os.path.basename(input_file))[0]
+from .ebook_generator import make_ebook, get_title
 
 
 def main() -> None:
@@ -33,9 +29,10 @@ def main() -> None:
     profile = get_profile(arguments.profile)
     processed_images_directory = process_images(profile, extract_directory)
 
-    # TODO: Check output exists
-    make_ebook(title, processed_images_directory, arguments.output_file)
-    input("Press any key to quit...")
+    epub_file_path = make_ebook(
+        title, processed_images_directory, arguments.output_file
+    )
+    print(f"Generated epub to {epub_file_path}")
 
 
 if __name__ == "__main__":

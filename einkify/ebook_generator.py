@@ -11,6 +11,10 @@ from PIL import Image
 from .image_processor import get_image_paths
 
 
+def get_title(input_file: str) -> str:
+    return os.path.splitext(os.path.basename(input_file))[0]
+
+
 def create_cover(image_path: str, output_directory: str) -> str:
     cover_path = os.path.join(
         output_directory, f"cover{os.path.splitext(image_path)[1]}"
@@ -55,7 +59,7 @@ def map_paths(file_paths: List[str]) -> List[Tuple[str, str]]:
     return file_path_maps
 
 
-def create_style_file(output_directory: str) -> str:
+def write_style_file(output_directory: str) -> str:
     style_file_path = os.path.join(output_directory, "style.css")
 
     write_file(
@@ -75,7 +79,7 @@ def create_style_file(output_directory: str) -> str:
     return style_file_path
 
 
-def create_image_xhtml(
+def write_image_xhtml_files(
     image_path_maps: List[Tuple[str, str]],
     image_directory: str,
     output_directory: str,
@@ -114,7 +118,7 @@ def create_image_xhtml(
     return xhtml_paths
 
 
-def create_toc(
+def write_toc_file(
     title: str, book_uuid: str, first_page_path: str, output_directory: str
 ) -> str:
     toc_path = os.path.join(output_directory, "toc.ncx")
@@ -141,7 +145,9 @@ def create_toc(
     return toc_path
 
 
-def create_nav(title: str, first_page_path: str, output_directory: str) -> str:
+def write_nav_file(
+    title: str, first_page_path: str, output_directory: str
+) -> str:
     nav_path = os.path.join(output_directory, "nav.xhtml")
 
     write_file(
@@ -208,20 +214,11 @@ def generate_item(
     )
 
 
-def create_content(
-    title: str,
-    book_uuid: str,
-    xhtml_files: List[str],
-    image_paths: List[str],
-    cover_image_path: str,
-    output_directory: str,
-) -> str:
-    content_path = os.path.join(output_directory, "content.opf")
-
+def create_metadata(title: str, book_uuid: str) -> List[str]:
     current_utc_time = datetime.now(timezone.utc)
-    modifed_time = current_utc_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    modified_time = current_utc_time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    metadata_lines = [
+    return [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<package version="3.0" unique-identifier="BookID" xmlns="http://www.idpf.org/2007/opf">',
         '<metadata xmlns:opf="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/">',
@@ -229,7 +226,7 @@ def create_content(
         "<dc:language>en-US</dc:language>",
         f'<dc:identifier id="BookID">urn:uuid:{book_uuid}</dc:identifier>',
         "<dc:creator>Unknown</dc:creator>",
-        f'<meta property="dcterms:modified">{modifed_time}</meta>',
+        f'<meta property="dcterms:modified">{modified_time}</meta>',
         '<meta name="cover" content="cover"/>',
         '<meta property="rendition:orientation">portrait</meta>',
         '<meta property="rendition:spread">portrait</meta>',
@@ -237,6 +234,10 @@ def create_content(
         "</metadata>",
     ]
 
+
+def create_manifest(
+    cover_image_path: str, xhtml_files: List[str], image_paths: List[str]
+) -> List[str]:
     cover_image = Image.open(cover_image_path)
 
     manifest_lines = [
@@ -247,20 +248,44 @@ def create_content(
         '<item id="css" href="Text/style.css" media-type="text/css"/>',
     ]
 
-    # TODO: change this depending on manga selected
-    spine_lines = ['<spine page-progression-direction="rtl" toc="ncx">']
-
     page_items = generate_page_items(xhtml_files)
     image_items = generate_image_items(image_paths)
 
     for page_item in page_items:
         manifest_lines.append(page_item[1])
-        spine_lines.append(f'<itemref idref="{page_item[0]}"/>')
 
     manifest_lines += [image_item[1] for image_item in image_items]
     manifest_lines.append("</manifest>")
 
+    return manifest_lines
+
+
+def create_spine(xhtml_files: List[str]) -> List[str]:
+    # TODO: change this depending on manga selected
+    spine_lines = ['<spine page-progression-direction="rtl" toc="ncx">']
+    page_items = generate_page_items(xhtml_files)
+
+    for page_item in page_items:
+        spine_lines.append(f'<itemref idref="{page_item[0]}"/>')
+
     spine_lines += ["</spine>", "</package>"]
+
+    return spine_lines
+
+
+def write_content_file(
+    title: str,
+    book_uuid: str,
+    xhtml_files: List[str],
+    image_paths: List[str],
+    cover_image_path: str,
+    output_directory: str,
+) -> str:
+    content_path = os.path.join(output_directory, "content.opf")
+
+    metadata_lines = create_metadata(title, book_uuid)
+    manifest_lines = create_manifest(cover_image_path, xhtml_files, image_paths)
+    spine_lines = create_spine(xhtml_files)
 
     write_file(
         content_path,
@@ -268,7 +293,7 @@ def create_content(
     )
 
 
-def create_container(output_directory: str) -> str:
+def write_container_file(output_directory: str) -> str:
     container_path = os.path.join(output_directory, "container.xml")
 
     write_file(
@@ -286,7 +311,7 @@ def create_container(output_directory: str) -> str:
     return container_path
 
 
-def create_mime_type(output_directory: str) -> str:
+def write_mime_type_file(output_directory: str) -> str:
     mime_type_path = os.path.join(output_directory, "mimetype")
 
     write_file(mime_type_path, ["application/epub+zip"])
@@ -313,18 +338,29 @@ def create_epub(title: str, epub_directory: str, output_path: str) -> str:
     return output_path
 
 
+def create_directories(parent_directory: str) -> List[str, str, str, str]:
+    oebps_directory = os.path.join(parent_directory, "OEBPS")
+    text_directory = os.path.join(oebps_directory, "Text")
+    images_directory = os.path.join(oebps_directory, "Images")
+    meta_directory = os.path.join(parent_directory, "META-INF")
+
+    for directory in [text_directory, images_directory, meta_directory]:
+        os.makedirs(directory, exist_ok=True)
+
+    return oebps_directory, text_directory, images_directory, meta_directory
+
+
 def make_ebook(title: str, image_directory: str, output_path: str) -> str:
     temp_directory = tempfile.TemporaryDirectory()
     temp_epub_directory = os.path.join(temp_directory.name, "ebook")
     book_uuid = str(uuid4())
 
-    oebps_directory = os.path.join(temp_epub_directory, "OEBPS")
-    text_directory = os.path.join(oebps_directory, "Text")
-    images_directory = os.path.join(oebps_directory, "Images")
-    meta_directory = os.path.join(temp_epub_directory, "META-INF")
-
-    for directory in [text_directory, images_directory, meta_directory]:
-        os.makedirs(directory, exist_ok=True)
+    (
+        oebps_directory,
+        text_directory,
+        images_directory,
+        meta_directory,
+    ) = create_directories(temp_epub_directory)
 
     image_paths = get_image_paths(image_directory)
     image_path_maps = map_paths(image_paths)
@@ -335,16 +371,16 @@ def make_ebook(title: str, image_directory: str, output_path: str) -> str:
     new_image_paths = copy_images(
         image_path_maps, image_directory, images_directory
     )
-    create_style_file(text_directory)
-    xhtml_paths = create_image_xhtml(
+    xhtml_paths = write_image_xhtml_files(
         image_path_maps, image_directory, text_directory
     )
 
     first_page_path = os.path.basename(xhtml_paths[0])
 
-    create_toc(title, book_uuid, first_page_path, oebps_directory)
-    create_nav(title, first_page_path, oebps_directory)
-    create_content(
+    write_style_file(text_directory)
+    write_toc_file(title, book_uuid, first_page_path, oebps_directory)
+    write_nav_file(title, first_page_path, oebps_directory)
+    write_content_file(
         title,
         book_uuid,
         xhtml_paths,
@@ -352,9 +388,10 @@ def make_ebook(title: str, image_directory: str, output_path: str) -> str:
         cover_image_path,
         oebps_directory,
     )
-    create_container(meta_directory)
-    create_mime_type(temp_epub_directory)
+    write_container_file(meta_directory)
+    write_mime_type_file(temp_epub_directory)
 
-    create_epub(title, temp_epub_directory, output_path)
-
+    epub_file_path = create_epub(title, temp_epub_directory, output_path)
     temp_directory.cleanup()
+
+    return epub_file_path
